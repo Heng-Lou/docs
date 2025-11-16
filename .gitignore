@@ -1,0 +1,44 @@
+# Build directories
+build/
+builddir/
+*.o
+*.a
+*.so
+*.d
+
+# DPDK build artifacts
+*.dpdk
+
+# Meson build files
+.ninja_deps
+.ninja_log
+
+# Editor and IDE files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Downloads
+downloads/
+
+# Simulation logs
+sim_logs/
+*.log
+
+# Core dumps
+core
+vgcore.*
+
+# Temporary files
+*.tmp
+*.bak
+
+# Virtual environment
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc

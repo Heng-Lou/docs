@@ -1,0 +1,233 @@
+# Multi-Switch Topology Configuration
+
+# Number of switches and hosts
+num_switches: 4
+num_hosts: 4
+
+# Network configuration
+network:
+  subnet: "10.0.0.0/24"
+  gateway: "10.0.0.254"
+  dns: "8.8.8.8"
+
+# Topology type
+topology:
+  type: "star"  # Options: star, mesh, ring, hybrid
+  redundancy: true
+  backbone_switches: 1
+
+# Switch configuration template
+switch_template:
+  type: "three_port_switch"
+  binary: "../three_port_switch/build/doca_three_port_switch"
+  
+  ports:
+    - id: 0
+      name: "host_connection"
+      type: "pci_devemu"
+      purpose: "Host connectivity via emulated PCI"
+      
+    - id: 1
+      name: "uplink_primary"
+      type: "ethernet"
+      purpose: "Primary uplink to backbone or peer switches"
+      
+    - id: 2
+      name: "uplink_secondary"
+      type: "ethernet"
+      purpose: "Secondary uplink for redundancy"
+      
+  features:
+    mac_learning: true
+    mac_table_size: 256
+    mac_aging_timeout: 300  # seconds
+    statistics: true
+    statistics_interval: 5  # seconds
+    
+  flow_offload:
+    enabled: true
+    mode: "vnf,hws"
+    nb_queues: 3
+
+# Switch instances
+switches:
+  - id: 0
+    name: "access-switch-0"
+    location: "rack-1-slot-1"
+    pci_device: "04:00.0"
+    ethernet_ports:
+      - "03:00.0"  # Port 1
+      - "03:00.1"  # Port 2
+    connected_host: 0
+    
+  - id: 1
+    name: "access-switch-1"
+    location: "rack-1-slot-2"
+    pci_device: "05:00.0"
+    ethernet_ports:
+      - "03:01.0"
+      - "03:01.1"
+    connected_host: 1
+    
+  - id: 2
+    name: "access-switch-2"
+    location: "rack-1-slot-3"
+    pci_device: "06:00.0"
+    ethernet_ports:
+      - "03:02.0"
+      - "03:02.1"
+    connected_host: 2
+    
+  - id: 3
+    name: "access-switch-3"
+    location: "rack-1-slot-4"
+    pci_device: "07:00.0"
+    ethernet_ports:
+      - "03:03.0"
+      - "03:03.1"
+    connected_host: 3
+
+# Host configuration
+hosts:
+  - id: 0
+    name: "host-0"
+    ip: "10.0.0.1/24"
+    mac: "00:00:00:00:00:01"
+    pci_devemu_vuid: "pci-emu-switch-0"
+    connected_switch: 0
+    
+  - id: 1
+    name: "host-1"
+    ip: "10.0.0.2/24"
+    mac: "00:00:00:00:00:02"
+    pci_devemu_vuid: "pci-emu-switch-1"
+    connected_switch: 1
+    
+  - id: 2
+    name: "host-2"
+    ip: "10.0.0.3/24"
+    mac: "00:00:00:00:00:03"
+    pci_devemu_vuid: "pci-emu-switch-2"
+    connected_switch: 2
+    
+  - id: 3
+    name: "host-3"
+    ip: "10.0.0.4/24"
+    mac: "00:00:00:00:00:04"
+    pci_devemu_vuid: "pci-emu-switch-3"
+    connected_switch: 3
+
+# DevEmu PCI device configuration
+devemu:
+  enabled: true
+  driver: "vfio-pci"
+  
+  devices:
+    - vuid: "pci-emu-switch-0"
+      pci_address: "04:00.0"
+      vendor_id: "0x15b3"  # Mellanox/NVIDIA
+      device_id: "0xa2dc"   # ConnectX-7
+      
+    - vuid: "pci-emu-switch-1"
+      pci_address: "05:00.0"
+      vendor_id: "0x15b3"
+      device_id: "0xa2dc"
+      
+    - vuid: "pci-emu-switch-2"
+      pci_address: "06:00.0"
+      vendor_id: "0x15b3"
+      device_id: "0xa2dc"
+      
+    - vuid: "pci-emu-switch-3"
+      pci_address: "07:00.0"
+      vendor_id: "0x15b3"
+      device_id: "0xa2dc"
+
+# Backbone switch configuration (for star topology)
+backbone:
+  enabled: true
+  count: 1
+  
+  switch_0:
+    name: "backbone-switch-0"
+    type: "simple_fwd_vnf"  # Use existing VNF for backbone
+    binary: "../simple_fwd_vnf/build/doca_simple_fwd_vnf"
+    ports:
+      - "10:00.0"  # To access switch 0
+      - "10:00.1"  # To access switch 1
+      - "10:00.2"  # To access switch 2
+      - "10:00.3"  # To access switch 3
+
+# Monitoring and management
+monitoring:
+  enabled: true
+  interval: 10  # seconds
+  
+  metrics:
+    - packets_forwarded
+    - packets_dropped
+    - mac_table_entries
+    - port_statistics
+    - link_status
+    
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+    file: "/var/log/doca_multi_switch.log"
+    syslog: false
+
+# Testing configuration
+testing:
+  enabled: true
+  
+  connectivity_tests:
+    - name: "ping_all_hosts"
+      type: "ping"
+      source: "all"
+      destination: "all"
+      count: 4
+      
+    - name: "bandwidth_test"
+      type: "iperf3"
+      pairs:
+        - ["host-0", "host-3"]
+        - ["host-1", "host-2"]
+      duration: 10  # seconds
+      
+  performance_tests:
+    - name: "latency_measurement"
+      type: "ping"
+      source: "host-0"
+      destination: "host-3"
+      count: 100
+      interval: 0.01  # 10ms
+      
+    - name: "throughput_test"
+      type: "iperf3"
+      source: "host-0"
+      destination: "host-3"
+      duration: 30
+      parallel: 4
+
+# Advanced features
+advanced:
+  vlans:
+    enabled: false
+    default_vlan: 1
+    trunk_ports: [1, 2]  # Ethernet uplinks
+    
+  qos:
+    enabled: false
+    priority_levels: 8
+    rate_limiting: false
+    
+  acls:
+    enabled: false
+    default_action: "permit"
+    
+  spanning_tree:
+    enabled: false
+    protocol: "rstp"  # rstp or mstp
+    
+  link_aggregation:
+    enabled: false
+    mode: "lacp"  # lacp or static

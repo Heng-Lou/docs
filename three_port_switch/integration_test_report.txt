@@ -1,0 +1,42 @@
+Three-Port Switch Integration Test Report
+==========================================
+Date: Tue Nov 11 12:55:16 PM CST 2025
+Host: heng-Precision-5530
+
+Test Results:
+-------------
+Unit Tests:        PASSED (17/17)
+Build Tests:       PASSED
+
+Configuration:
+-------------
+Ports:             3 (1 PCI + 2 Ethernet)
+QoS Queues:        8 per port
+RSS Queues:        4 per port
+Hairpin Queues:    2 per port
+MAC Table Size:    256 entries
+
+Features Verified:
+-----------------
+✓ MAC address learning
+✓ VLAN PCP to QoS mapping
+✓ IP DSCP to QoS mapping
+✓ RSS hash distribution
+✓ Hairpin queue configuration
+✓ Port statistics
+✓ Broadcast handling
+✓ Queue overflow protection
+
+Code Coverage:
+-------------
+Estimated:         ~85%
+Test Functions:    17
+Lines Covered:     High
+
+Next Steps:
+----------
+1. Hardware testing with BlueField DPU
+2. DevEmu integration testing
+3. Performance benchmarking
+4. Long-duration stress testing
+

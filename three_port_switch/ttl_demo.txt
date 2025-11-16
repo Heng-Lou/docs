@@ -1,0 +1,75 @@
+========================================
+TTL/Hop Limit Demo - Ring Topology
+========================================
+
+This demonstrates how TTL prevents infinite loops
+in a 3-switch ring topology.
+
+Starting interactive simulator...
+
+> sendip 0 64 5
+Processing packet: size=64, port=0, TTL=5, is_ipv4=1
+  TTL decremented to 4
+  Forwarding: port 0 -> port 1
+  SUCCESS: Packet forwarded
+
+Simulating packet arrival at port 1...
+> sendip 1 64 4
+Processing packet: size=64, port=1, TTL=4, is_ipv4=1
+  TTL decremented to 3
+  Forwarding: port 1 -> port 2
+  SUCCESS: Packet forwarded
+
+Simulating packet arrival at port 2...
+> sendip 2 64 3
+Processing packet: size=64, port=2, TTL=3, is_ipv4=1
+  TTL decremented to 2
+  Forwarding: port 2 -> port 0
+  SUCCESS: Packet forwarded
+
+Back to port 0 (completed 1 ring loop)...
+> sendip 0 64 2
+Processing packet: size=64, port=0, TTL=2, is_ipv4=1
+  TTL decremented to 1
+  Forwarding: port 0 -> port 1
+  SUCCESS: Packet forwarded
+
+> sendip 1 64 1
+Processing packet: size=64, port=1, TTL=1, is_ipv4=1
+  DROPPED: TTL/hop limit expired (TTL=1)
+
+Packet dropped! Loop prevented after ~1.5 loops.
+
+> stats
+
+Port Statistics
+========================================
+
+Port 0 (pci_port):
+  Enabled: Yes
+  MTU: 1500
+  RX: 2 packets, 128 bytes, 0 errors
+  TX: 2 packets, 128 bytes, 0 errors
+  TTL expired: 0 packets
+
+Port 1 (eth_port_1):
+  Enabled: Yes
+  MTU: 1500
+  RX: 2 packets, 128 bytes, 0 errors
+  TX: 1 packets, 64 bytes, 0 errors
+  TTL expired: 1 packets  <-- TTL expired here!
+
+Port 2 (eth_port_2):
+  Enabled: Yes
+  MTU: 1500
+  RX: 1 packets, 64 bytes, 0 errors
+  TX: 1 packets, 64 bytes, 0 errors
+  TTL expired: 0 packets
+
+========================================
+Summary:
+- Initial TTL: 5
+- Hops completed: 5 (before drop on 6th hop)
+- Ring loops: ~1.5 (5 hops / 3 ports per loop)
+- Result: Loop prevented ✓
+========================================

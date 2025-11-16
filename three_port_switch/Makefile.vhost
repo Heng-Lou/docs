@@ -1,0 +1,76 @@
+# Makefile for Virtual Host and Switch Simulation
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -g -pthread
+LDFLAGS = -pthread -lrt
+
+# Targets
+VHOST_TEST = vhost_switch_test
+
+# Source files
+VHOST_SRCS = vhost_switch_test.c virtual_link.c virtual_host.c
+VHOST_OBJS = $(VHOST_SRCS:.c=.o)
+
+.PHONY: all clean test help
+
+all: $(VHOST_TEST)
+
+$(VHOST_TEST): $(VHOST_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Test targets
+test: test-basic test-pktgen test-ring
+
+test-basic: $(VHOST_TEST)
+	@echo "========================================  "
+	@echo "Basic Virtual Host + Switch Test"
+	@echo "========================================"
+	@echo "Testing 4 hosts + 4 switches in ring topology"
+	@./$(VHOST_TEST) -n 4 -d 5
+
+test-pktgen: $(VHOST_TEST)
+	@echo "========================================"
+	@echo "Packet Generation Test"
+	@echo "========================================"
+	@echo "Testing with packet generation enabled"
+	@./$(VHOST_TEST) -n 4 -p -r 100 -c 50 -d 8
+
+test-ring: $(VHOST_TEST)
+	@echo "========================================"
+	@echo "Ring Topology Test"
+	@echo "========================================"
+	@echo "Testing 8 hosts + 8 switches in ring"
+	@./$(VHOST_TEST) -n 8 -p -r 50 -c 100 -d 10
+
+test-stress: $(VHOST_TEST)
+	@echo "========================================"
+	@echo "Stress Test"
+	@echo "========================================"
+	@echo "Testing with high packet rate"
+	@./$(VHOST_TEST) -n 8 -p -r 1000 -c 1000 -d 15
+
+clean:
+	rm -f $(VHOST_TEST) $(VHOST_OBJS)
+
+help:
+	@echo "Virtual Host + Switch Simulation Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all           - Build virtual host test program"
+	@echo "  test          - Run all tests"
+	@echo "  test-basic    - Basic functionality test (4 hosts/switches)"
+	@echo "  test-pktgen   - Packet generation test"
+	@echo "  test-ring     - Ring topology test (8 hosts/switches)"
+	@echo "  test-stress   - Stress test with high packet rate"
+	@echo "  clean         - Remove built files"
+	@echo "  help          - Show this help"
+	@echo ""
+	@echo "Manual usage:"
+	@echo "  ./$(VHOST_TEST) -n 4 -p -r 100 -c 100 -d 10"
+	@echo "    -n NUM      Number of hosts/switches (default: 4)"
+	@echo "    -p          Enable packet generation"
+	@echo "    -r RATE     Packet rate in pps (default: 100)"
+	@echo "    -c COUNT    Number of packets (default: 100, 0=infinite)"
+	@echo "    -d DURATION Run duration in seconds (default: 10)"

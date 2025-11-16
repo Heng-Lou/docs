@@ -1,0 +1,78 @@
+# Makefile for Virtual Link Switch Simulation
+
+CC = gcc
+CFLAGS = -Wall -Wextra -g -O2 -pthread
+LDFLAGS = -pthread
+
+# Targets
+VLINK_SIM = vlink_switch_sim
+VLINK_TEST = test_vlink
+JITTER_TEST = test_jitter_delay
+
+# Source files
+VLINK_OBJS = virtual_link.o vlink_switch_sim.o
+TEST_OBJS = virtual_link.o test_virtual_link.o
+JITTER_OBJS = virtual_link.o test_jitter_delay.o
+
+.PHONY: all clean vlink test test-jitter
+
+all: $(VLINK_SIM)
+
+vlink: $(VLINK_SIM)
+
+test: $(VLINK_TEST)
+	@echo "Running virtual link tests..."
+	./$(VLINK_TEST)
+
+test-jitter: $(JITTER_TEST)
+	@echo "Running jitter and delay tests..."
+	./$(JITTER_TEST)
+
+$(VLINK_SIM): $(VLINK_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "Built: $@"
+
+$(VLINK_TEST): $(TEST_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "Built: $@"
+
+$(JITTER_TEST): $(JITTER_OBJS)
+	$(CC) $(LDFLAGS) -o $@ $^
+	@echo "Built: $@"
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+virtual_link.o: virtual_link.c virtual_link.h
+vlink_switch_sim.o: vlink_switch_sim.c virtual_link.h
+test_virtual_link.o: test_virtual_link.c virtual_link.h
+test_jitter_delay.o: test_jitter_delay.c virtual_link.h
+
+clean:
+	rm -f $(VLINK_SIM) $(VLINK_TEST) $(JITTER_TEST) *.o
+	@echo "Cleaned build artifacts"
+
+# Quick test targets
+test-ring: $(VLINK_SIM)
+	./$(VLINK_SIM) -n 4 -t ring -s
+
+test-line: $(VLINK_SIM)
+	./$(VLINK_SIM) -n 4 -t line -s
+
+test-mesh: $(VLINK_SIM)
+	./$(VLINK_SIM) -n 4 -t mesh -s
+
+# Help
+help:
+	@echo "Virtual Link Switch Simulation Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all         - Build virtual link switch simulator (default)"
+	@echo "  vlink       - Build virtual link switch simulator"
+	@echo "  test        - Build and run unit tests"
+	@echo "  test-jitter - Build and run jitter/delay tests"
+	@echo "  clean       - Remove build artifacts"
+	@echo "  test-ring   - Run ring topology test"
+	@echo "  test-line   - Run line topology test"
+	@echo "  test-mesh   - Run mesh topology test"
+	@echo "  help        - Show this help"

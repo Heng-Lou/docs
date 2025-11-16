@@ -1,0 +1,76 @@
+# Makefile for Three-Port Switch Test Suite
+
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -g
+LDFLAGS = -lm
+
+# Test executable
+TEST_TARGET = test_three_port_switch
+
+# Source files
+TEST_SRC = test_three_port_switch.c
+TEST_OBJ = $(TEST_SRC:.c=.o)
+
+# Coverage files
+COV_FLAGS = -fprofile-arcs -ftest-coverage
+COV_LDFLAGS = -lgcov --coverage
+
+.PHONY: all test clean coverage run
+
+all: $(TEST_TARGET)
+
+$(TEST_TARGET): $(TEST_OBJ)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Build with coverage instrumentation
+coverage: CFLAGS += $(COV_FLAGS)
+coverage: LDFLAGS += $(COV_LDFLAGS)
+coverage: clean $(TEST_TARGET)
+
+# Run tests
+test: $(TEST_TARGET)
+	@echo "Running test suite..."
+	@./$(TEST_TARGET)
+
+# Run tests with coverage report
+run-coverage: coverage
+	@echo "Running test suite with coverage..."
+	@./$(TEST_TARGET)
+	@echo ""
+	@echo "Generating coverage report..."
+	@gcov $(TEST_SRC)
+	@echo ""
+	@echo "Coverage summary:"
+	@grep -A 3 "File" test_three_port_switch.c.gcov | head -20
+
+# Generate detailed coverage HTML report (requires lcov)
+html-coverage: run-coverage
+	@if command -v lcov >/dev/null 2>&1; then \
+		echo "Generating HTML coverage report..."; \
+		lcov --capture --directory . --output-file coverage.info; \
+		lcov --remove coverage.info '/usr/*' --output-file coverage.info; \
+		genhtml coverage.info --output-directory coverage_html; \
+		echo "Coverage report generated in coverage_html/index.html"; \
+	else \
+		echo "lcov not installed. Install with: sudo apt-get install lcov"; \
+	fi
+
+clean:
+	rm -f $(TEST_TARGET) $(TEST_OBJ)
+	rm -f *.gcda *.gcno *.gcov coverage.info
+	rm -rf coverage_html
+
+help:
+	@echo "Three-Port Switch Test Suite Makefile"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all           - Build test executable"
+	@echo "  test          - Build and run tests"
+	@echo "  coverage      - Build with coverage instrumentation"
+	@echo "  run-coverage  - Run tests with coverage analysis"
+	@echo "  html-coverage - Generate HTML coverage report (requires lcov)"
+	@echo "  clean         - Remove build artifacts"
+	@echo "  help          - Show this help message"

@@ -1,0 +1,81 @@
+# Makefile for Three-Port Switch Debugging
+
+CC = gcc
+CFLAGS = -g -O0 -Wall -Wextra
+LDFLAGS =
+
+# Targets
+SIM = switch_sim
+SIM_SRC = three_port_switch_sim.c
+
+.PHONY: all clean debug test interactive help
+
+all: $(SIM)
+	@echo "Build complete. Run 'make help' for usage."
+
+$(SIM): $(SIM_SRC)
+	@echo "Building simulation with debug symbols..."
+	$(CC) $(CFLAGS) -o $(SIM) $(SIM_SRC) $(LDFLAGS)
+	@echo "✓ Built: $(SIM)"
+
+debug: $(SIM)
+	@echo "Starting GDB debugger..."
+	gdb -ex "break process_packet" -ex "break run_tests" ./$(SIM)
+
+test: $(SIM)
+	@echo "Running automated tests..."
+	./$(SIM) test
+
+interactive: $(SIM)
+	@echo "Starting interactive mode..."
+	./$(SIM) interactive
+
+# GDB with specific breakpoints
+debug-packet: $(SIM)
+	@echo "Debugging packet processing..."
+	gdb -ex "break process_packet" -ex "run test" ./$(SIM)
+
+debug-stats: $(SIM)
+	@echo "Debugging with stats watchpoint..."
+	gdb -ex "break process_packet" \
+	    -ex "watch port_stats[0].rx_packets" \
+	    -ex "run test" ./$(SIM)
+
+# Setup debug environment for actual three-port switch
+setup-debug:
+	@echo "Setting up debug environment for three-port switch..."
+	chmod +x setup_debug.sh
+	./setup_debug.sh
+
+clean:
+	rm -f $(SIM)
+	@echo "Cleaned build artifacts"
+
+help:
+	@echo "Three-Port Switch Debugging Makefile"
+	@echo "====================================="
+	@echo ""
+	@echo "Targets:"
+	@echo "  make                - Build simulation"
+	@echo "  make test           - Run automated tests"
+	@echo "  make interactive    - Run interactive mode"
+	@echo "  make debug          - Debug with GDB"
+	@echo "  make debug-packet   - Debug packet processing"
+	@echo "  make debug-stats    - Debug with statistics watchpoint"
+	@echo "  make setup-debug    - Setup debug for actual switch"
+	@echo "  make clean          - Clean build files"
+	@echo ""
+	@echo "Examples:"
+	@echo "  1. Test simulation:"
+	@echo "     make test"
+	@echo ""
+	@echo "  2. Debug simulation:"
+	@echo "     make debug"
+	@echo ""
+	@echo "  3. Setup debugging for actual three-port switch:"
+	@echo "     make setup-debug"
+	@echo ""
+	@echo "  4. Manual GDB:"
+	@echo "     gdb ./switch_sim"
+	@echo "     (gdb) break process_packet"
+	@echo "     (gdb) run test"

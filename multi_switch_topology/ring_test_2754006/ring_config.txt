@@ -1,0 +1,7 @@
+# Ring topology configuration
+num_switches=4
+topology=ring
+base_latency_us=100
+jitter_us=50
+extra_delay_us=0
+loss_rate=0.0
