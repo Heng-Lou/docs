@@ -180,4 +180,18 @@ uint16_t vhost_build_udp_packet(uint8_t *packet, uint16_t max_size,
                                 uint16_t dst_port, uint16_t src_port,
                                 const uint8_t *payload, uint16_t payload_len);
 
+/*
+ * Helper: Generate ARP request packet
+ */
+uint16_t vhost_build_arp_request(uint8_t *packet, uint16_t max_size,
+                                 const uint8_t *src_mac, const uint8_t *src_ip,
+                                 const uint8_t *target_ip);
+
+/*
+ * Helper: Generate ARP reply packet
+ */
+uint16_t vhost_build_arp_reply(uint8_t *packet, uint16_t max_size,
+                               const uint8_t *src_mac, const uint8_t *src_ip,
+                               const uint8_t *dst_mac, const uint8_t *dst_ip);
+
 #endif /* VIRTUAL_HOST_H */

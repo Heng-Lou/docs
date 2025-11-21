@@ -1,6 +1,6 @@
 # Makefile for Virtual Host and Switch Simulation
 CC = gcc
-CFLAGS = -Wall -Wextra -O2 -g -pthread
+CFLAGS = -Wall -Wextra -O2 -g -pthread -mcmodel=medium
 LDFLAGS = -pthread -lrt
 
 # Targets

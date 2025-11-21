@@ -42,3 +42,23 @@ env/
 # Python cache
 __pycache__/
 *.pyc
+
+# Build artifacts
+*.o
+*.gcno
+*.gcda
+*.gcov
+coverage.info
+coverage_html/
+
+# Test executables
+three_port_switch/test_three_port_switch
+three_port_switch/vhost_switch_test
+three_port_switch/test_vlink
+
+# Test outputs
+*.txt
+!DEVELOPMENT_HISTORY.txt
+
+# Personal notes
+heng_node.txt

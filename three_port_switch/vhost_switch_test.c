@@ -317,7 +317,6 @@ static void configure_pktgen(bool enabled, uint32_t pps, uint32_t count)
     
     for (uint32_t i = 0; i < num_switches; i++) {
         vhost_pktgen_config_t config = {0};
-        config.enabled = true;
         config.pkt_size = 128;
         config.pps = pps;
         config.count = count;

@@ -34,8 +34,38 @@ static void *pktgen_thread_func(void *arg)
     uint32_t sent = 0;
     uint64_t interval_ns = 1000000000ULL / host->pktgen.pps;
     struct timespec next_time, now;
+    bool arp_sent = false;
+    
+    printf("[PKTGEN] Thread started for host %u (running=%d, enabled=%d, pps=%u)\n",
+           host->host_id, host->running, host->pktgen.enabled, host->pktgen.pps);
     
     clock_gettime(CLOCK_MONOTONIC, &next_time);
+    
+    /* Send ARP request first to establish MAC-IP mapping */
+    if (!arp_sent) {
+        uint16_t arp_size = vhost_build_arp_request(
+            packet, sizeof(packet),
+            host->config.mac_addr,
+            host->config.ip_addr,
+            host->pktgen.dst_ip
+        );
+        
+        if (arp_size > 0) {
+            int arp_result = vlink_send(host->link_mgr, host->pci_link_id, packet, arp_size);
+            if (arp_result == 0) {
+                printf("[PKTGEN] Host %u: Sent ARP request for %u.%u.%u.%u\n",
+                       host->host_id,
+                       host->pktgen.dst_ip[0], host->pktgen.dst_ip[1],
+                       host->pktgen.dst_ip[2], host->pktgen.dst_ip[3]);
+                arp_sent = true;
+                
+                /* Wait a bit for ARP reply */
+                usleep(100000);  /* 100ms */
+            } else {
+                printf("[PKTGEN] Host %u: Failed to send ARP request\n", host->host_id);
+            }
+        }
+    }
     
     while (host->running && host->pktgen.enabled) {
         /* Build packet */
@@ -48,12 +78,14 @@ static void *pktgen_thread_func(void *arg)
         );
         
         if (pkt_size == 0) {
+            printf("[PKTGEN] Host %u: build_udp_packet failed\n", host->host_id);
             host->stats.tx_errors++;
             break;
         }
         
         /* Send packet */
-        if (vlink_send(host->link_mgr, host->pci_link_id, packet, pkt_size) == 0) {
+        int send_result = vlink_send(host->link_mgr, host->pci_link_id, packet, pkt_size);
+        if (send_result == 0) {
             pthread_mutex_lock(&host->lock);
             host->stats.tx_packets++;
             host->stats.tx_bytes += pkt_size;
@@ -62,10 +94,19 @@ static void *pktgen_thread_func(void *arg)
             
             /* Check if we've sent enough */
             if (host->pktgen.count > 0 && sent >= host->pktgen.count) {
+                printf("[PKTGEN] Host %u: reached count limit %u\n", host->host_id, sent);
                 break;
             }
         } else {
+            static int error_count[MAX_VHOSTS] = {0};
+            if (error_count[host->host_id] < 5) {  /* Only log first 5 errors per host */
+                printf("[PKTGEN] Host %u: vlink_send failed (result=%d, attempt %u)\n", 
+                       host->host_id, send_result, sent + error_count[host->host_id] + 1);
+                error_count[host->host_id]++;
+            }
+            pthread_mutex_lock(&host->lock);
             host->stats.tx_errors++;
+            pthread_mutex_unlock(&host->lock);
         }
         
         /* Rate limiting */
@@ -89,6 +130,14 @@ static void *pktgen_thread_func(void *arg)
         }
     }
     
+    if (!host->running) {
+        printf("[PKTGEN] Host %u: host->running became false\n", host->host_id);
+    }
+    if (!host->pktgen.enabled) {
+        printf("[PKTGEN] Host %u: pktgen.enabled became false\n", host->host_id);
+    }
+    
+    printf("[PKTGEN] Thread ending for host %u (sent %u UDP packets)\n", host->host_id, sent);
     host->pktgen.enabled = false;
     return NULL;
 }
@@ -222,6 +271,7 @@ int vhost_stop(vhost_manager_t *mgr, uint32_t host_id)
         return 0;  /* Already stopped */
     }
     
+    printf("[VHOST_STOP] Stopping host %u\n", host_id);
     host->running = false;
     
     /* Stop packet generator if running */
@@ -285,26 +335,34 @@ int vhost_configure_pktgen(vhost_manager_t *mgr, uint32_t host_id,
 int vhost_start_pktgen(vhost_manager_t *mgr, uint32_t host_id)
 {
     if (!mgr || host_id >= mgr->num_hosts) {
+        printf("[PKTGEN_START] Invalid mgr or host_id=%u >= %u\n", host_id, mgr ? mgr->num_hosts : 0);
         return -1;
     }
     
     vhost_instance_t *host = &mgr->hosts[host_id];
     
     if (host->pktgen.enabled) {
+        printf("[PKTGEN_START] Host %u already running\n", host_id);
         return 0;  /* Already running */
     }
     
     if (host->pktgen.pps == 0) {
+        printf("[PKTGEN_START] Host %u not configured (pps=0)\n", host_id);
         return -1;  /* Not configured */
     }
+    
+    printf("[PKTGEN_START] Starting pktgen for host %u (running=%d, pps=%u)\n", 
+           host_id, host->running, host->pktgen.pps);
     
     host->pktgen.enabled = true;
     
     if (pthread_create(&host->pktgen_thread, NULL, pktgen_thread_func, host) != 0) {
+        printf("[PKTGEN_START] pthread_create failed for host %u\n", host_id);
         host->pktgen.enabled = false;
         return -1;
     }
     
+    printf("[PKTGEN_START] pthread created successfully for host %u\n", host_id);
     return 0;
 }
 
@@ -519,6 +577,112 @@ uint16_t vhost_build_udp_packet(uint8_t *packet, uint16_t max_size,
     
     /* Payload */
     memcpy(udp + 8, payload, payload_len);
+    
+    return total_len;
+}
+
+/* Build ARP request packet */
+uint16_t vhost_build_arp_request(uint8_t *packet, uint16_t max_size,
+                                 const uint8_t *src_mac, const uint8_t *src_ip,
+                                 const uint8_t *target_ip)
+{
+    uint16_t total_len = 14 + 28;  /* Ethernet header + ARP packet */
+    
+    if (total_len > max_size) {
+        return 0;
+    }
+    
+    /* Ethernet header - broadcast */
+    memset(packet, 0xFF, 6);  /* Destination: broadcast */
+    memcpy(packet + 6, src_mac, 6);  /* Source MAC */
+    packet[12] = 0x08;  /* EtherType: ARP */
+    packet[13] = 0x06;
+    
+    /* ARP packet */
+    uint8_t *arp = packet + 14;
+    
+    /* Hardware type: Ethernet (1) */
+    arp[0] = 0x00;
+    arp[1] = 0x01;
+    
+    /* Protocol type: IPv4 (0x0800) */
+    arp[2] = 0x08;
+    arp[3] = 0x00;
+    
+    /* Hardware address length: 6 */
+    arp[4] = 0x06;
+    
+    /* Protocol address length: 4 */
+    arp[5] = 0x04;
+    
+    /* Operation: Request (1) */
+    arp[6] = 0x00;
+    arp[7] = 0x01;
+    
+    /* Sender hardware address (MAC) */
+    memcpy(arp + 8, src_mac, 6);
+    
+    /* Sender protocol address (IP) */
+    memcpy(arp + 14, src_ip, 4);
+    
+    /* Target hardware address (unknown, set to 0) */
+    memset(arp + 18, 0x00, 6);
+    
+    /* Target protocol address (IP) */
+    memcpy(arp + 24, target_ip, 4);
+    
+    return total_len;
+}
+
+/* Build ARP reply packet */
+uint16_t vhost_build_arp_reply(uint8_t *packet, uint16_t max_size,
+                               const uint8_t *src_mac, const uint8_t *src_ip,
+                               const uint8_t *dst_mac, const uint8_t *dst_ip)
+{
+    uint16_t total_len = 14 + 28;  /* Ethernet header + ARP packet */
+    
+    if (total_len > max_size) {
+        return 0;
+    }
+    
+    /* Ethernet header - unicast to requester */
+    memcpy(packet, dst_mac, 6);  /* Destination MAC */
+    memcpy(packet + 6, src_mac, 6);  /* Source MAC */
+    packet[12] = 0x08;  /* EtherType: ARP */
+    packet[13] = 0x06;
+    
+    /* ARP packet */
+    uint8_t *arp = packet + 14;
+    
+    /* Hardware type: Ethernet (1) */
+    arp[0] = 0x00;
+    arp[1] = 0x01;
+    
+    /* Protocol type: IPv4 (0x0800) */
+    arp[2] = 0x08;
+    arp[3] = 0x00;
+    
+    /* Hardware address length: 6 */
+    arp[4] = 0x06;
+    
+    /* Protocol address length: 4 */
+    arp[5] = 0x04;
+    
+    /* Operation: Reply (2) */
+    arp[6] = 0x00;
+    arp[7] = 0x02;
+    
+    /* Sender hardware address (MAC) */
+    memcpy(arp + 8, src_mac, 6);
+    
+    /* Sender protocol address (IP) */
+    memcpy(arp + 14, src_ip, 4);
+    
+    /* Target hardware address (MAC) */
+    memcpy(arp + 18, dst_mac, 6);
+    
+    /* Target protocol address (IP) */
+    memcpy(arp + 24, dst_ip, 4);
     
     return total_len;
 }

@@ -9,6 +9,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdint.h>
 
 /* Helper: Get current time in microseconds */
 static uint64_t get_time_us(void)
@@ -193,6 +194,7 @@ int vlink_create_ex(vlink_manager_t *mgr, const char *name,
     
     memset(link, 0, sizeof(*link));
     link->link_id = id;
+    link->peer_id = UINT32_MAX;  /* Not connected initially */
     
     /* Configure */
     strncpy(link->config.name, name, sizeof(link->config.name) - 1);
@@ -233,8 +235,9 @@ int vlink_connect(vlink_manager_t *mgr, uint32_t link_id1, uint32_t link_id2)
         return -EINVAL;
     }
     
-    /* In this implementation, we simply forward packets between
-     * link1's TX queue and link2's RX queue, and vice versa */
+    /* Store peer relationships for both directions */
+    mgr->links[link_id1].peer_id = link_id2;
+    mgr->links[link_id2].peer_id = link_id1;
     
     printf("Connected virtual links: %s <-> %s\n",
            mgr->links[link_id1].config.name,
@@ -308,10 +311,8 @@ int vlink_send(vlink_manager_t *mgr, uint32_t link_id,
     link->stats.tx_bytes += size;
     
     /* Also put in peer's RX queue if connected */
-    /* For simplicity, we'll assume the peer link is link_id ^ 1 for paired links */
-    uint32_t peer_id = link_id ^ 1;
-    if (peer_id < mgr->num_links) {
-        vlink_endpoint_t *peer = &mgr->links[peer_id];
+    if (link->peer_id != UINT32_MAX && link->peer_id < mgr->num_links) {
+        vlink_endpoint_t *peer = &mgr->links[link->peer_id];
         queue_enqueue(&peer->rx_queue, data, size);
     }
     

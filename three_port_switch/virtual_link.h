@@ -14,7 +14,7 @@
 
 #define MAX_VLINKS 32
 #define MAX_PACKET_SIZE 9000
-#define VLINK_QUEUE_SIZE 16  /* Reduced for reasonable memory usage */
+#define VLINK_QUEUE_SIZE 16384  /* High-rate testing: <5000 pkts/host */
 
 /* Virtual link statistics */
 typedef struct {
@@ -58,6 +58,7 @@ typedef struct {
 /* Virtual link endpoint */
 typedef struct {
     uint32_t link_id;
+    uint32_t peer_id;         /* Connected peer link ID (or UINT32_MAX if not connected) */
     vlink_config_t config;
     vlink_queue_t tx_queue;
     vlink_queue_t rx_queue;
