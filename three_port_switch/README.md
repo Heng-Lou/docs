@@ -369,3 +369,52 @@ This three-port switch demonstrates:
 ---
 
 **Note**: For production use, add error handling, VLAN support, proper aging, and comprehensive testing.
+
+## QoS (Quality of Service)
+
+The switch implements an 8-queue QoS system with:
+- **DSCP-based classification** (IP ToS field)
+- **Weighted Round Robin scheduling**
+- **Per-queue statistics**
+
+### Quick Test
+
+```bash
+# Start switches with QoS
+./deploy_switches.sh 3 line
+
+# Run quick validation
+./tools/quick_qos_test.sh
+
+# Monitor in real-time
+./tools/monitor_qos.sh
+```
+
+### QoS Tools
+
+See [tools/README.md](tools/README.md) for:
+- Real-time monitoring (`monitor_qos.sh`)
+- Quick validation (`quick_qos_test.sh`)
+- Comprehensive testing (`test_qos_differentiation.sh`)
+
+### Queue Priority Levels
+
+| Priority | Queue | DSCP | Example `-Q` value |
+|----------|-------|------|-------------------|
+| Highest  | Q7    | 46   | `0xb8`           |
+| High     | Q6    | 34   | `0x88`           |
+| Medium   | Q3    | 10   | `0x28`           |
+| Default  | Q0    | 0    | (no -Q flag)     |
+
+Example with different priorities:
+```bash
+# High priority (EF)
+sudo ip netns exec ns1 ping -Q 0xb8 10.0.3.2
+
+# Medium priority (AF1x)
+sudo ip netns exec ns1 ping -Q 0x28 10.0.3.2
+
+# Best effort
+sudo ip netns exec ns1 ping 10.0.3.2
+```
+
